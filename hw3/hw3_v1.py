@@ -220,6 +220,18 @@ def jacobi_update_serial(u,f,x,y):
 def jacobi_update_kernel(d_u,d_x,d_y):
     pass
 
+
+def pb4_plt(u, xvals, yvals, tm = False):
+
+    X,Y = np.meshgrid(xvals, yvals)
+    levels = [0.025, 0.1, 0.25, 0.50, 0.75]
+    plt.contourf(X,Y,u.T, levels = levels)
+    plt.contour(X,Y,u.T, levels = levels,colors = 'r', linewidths = 4)
+    plt.axis([0,1,0,1])
+    if tm:
+        plt.title('100 iter times = {:2.2f} ms'.format(tm))
+    plt.show()
+
 if __name__ == "__main__":
     # problem 1
     # (a) paralleled version of ewprod finished
@@ -352,13 +364,16 @@ if __name__ == "__main__":
 
     xvals = np.linspace(0., 1.0, NX)
     yvals = np.linspace(0., 1.0, NY)
+    '''
     u = jacobi_update_serial(u,jac_f,xvals,yvals)
+    pb4_plt(u.T,xvals,yvals)
+    '''
+    # 4-b
+    itr = 100
+    st = time.time()
+    for _ in range(itr):
+        u = jacobi_update_serial(u,jac_f,xvals,yvals)
+    duration = time.time()-st
+    pb4_plt(u.T,xvals,yvals, duration)
     
-    X,Y = np.meshgrid(xvals, yvals)
-    levels = [0.025, 0.1, 0.25, 0.50, 0.75]
-    plt.contourf(X,Y,u.T, levels = levels)
-    plt.contour(X,Y,u.T, levels = levels,colors = 'r', linewidths = 4)
-    plt.axis([0,1,0,1])
-    plt.show()
-     
-
+        
