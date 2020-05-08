@@ -203,10 +203,19 @@ def rk4_parallel(f,y0,t,w):
 def eigenvals_parallel(NC,NW,NT,h):
     pass
 
-def jacobi_update_serial(u,f):
-    return v
+def jac_f(x,y):
+    return x**4+y**4-1
 
-
+def jacobi_update_serial(u,f,x,y):
+    nx = len(x)
+    ny = len(y)
+    u_new = np.copy(u)
+    for i in range(1,nx-1):
+        for j in range(1,ny-1):
+            #u_new[i,j] = (u[i-1,j]+u[i+1,j]+u[i,j-1]+u[i,j+1])/4.
+            u_new[i,j] = f(x[i],y[j])
+    return u_new
+    
 @cuda.jit
 def jacobi_update_kernel(d_u,d_x,d_y):
     pass
@@ -329,4 +338,27 @@ if __name__ == "__main__":
     # 3-c
     
     # 4
+    # 4-a 
+    NX,NY = 128,128
+    iters = NY*NX
+    u = np.zeros(shape=[NX,NY], dtype=np.float32)
+    for i in range(NX):
+        for j in range(NY):
+            if i > 0:
+                u[i][j] = 0.5
+            if i < 0:
+                u[i][j] = -1
+    u[0,0] = 1
+
+    xvals = np.linspace(0., 1.0, NX)
+    yvals = np.linspace(0., 1.0, NY)
+    u = jacobi_update_serial(u,jac_f,xvals,yvals)
+    
+    X,Y = np.meshgrid(xvals, yvals)
+    levels = [0.025, 0.1, 0.25, 0.50, 0.75]
+    plt.contourf(X,Y,u.T, levels = levels)
+    plt.contour(X,Y,u.T, levels = levels,colors = 'r', linewidths = 4)
+    plt.axis([0,1,0,1])
+    plt.show()
+     
 
