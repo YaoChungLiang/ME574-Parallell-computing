@@ -15,7 +15,13 @@ def ewprod_kernel(d_res ,d_u,d_v):
     i = cuda.grid(1)
     if i < d_u.size:
         d_res[i] = d_u[i]*d_v[i]
-    #if cuda.thradIdx.x % 32 == 0:
+    if cuda.threadIdx.x % 32 == 0:
+        #print('(threadIdx,blockIdx) = ({},{})'.format(cuda.threadIdx.x,cuda.blockIdx.x))
+        #print('threadIdx')
+        #print(cuda.threadIdx.x)
+        #print('blockIdx')
+        #print(cuda.blockIdx.x)
+        print(cuda.blockIdx.x, cuda.threadIdx.x)
         
 
 def ewprod(u,v):
@@ -81,8 +87,9 @@ def smooth_parallel(v,rad):
     end.record()
     end.synchronize()
     elapsed = cuda.event_elapsed_time(st, end)
+    print('elapsed time = {}'.format(elapsed))
 
-    return d_out.copy_to_host()
+    return d_out.copy_to_host(), elapsed
 
 @cuda.jit
 def smooth_sm_kernel(d_out,d_arr, rad):
@@ -92,7 +99,7 @@ def smooth_sm_kernel(d_out,d_arr, rad):
     sh_arr = cuda.shared.array(NSHARED_2c,dtype = float32)
     
     t_Idx = cuda.threadIdx.x # thread index
-    sh_Idx = t_IDx + rad
+    sh_Idx = t_Idx + rad
 
     if i>=n:
         return
@@ -122,11 +129,17 @@ def smooth_parallel_sm(v,rad):
     gridDim =  (n+TPBx-1)//TPBx
     blockDim = TPBx
 
+    st = cuda.event()
+    end = cuda.event()
+    st.record()
     smooth_sm_kernel[gridDim, blockDim](d_out, d_v, rad)
-    
-    return d_put.copy_to_host()
+    end.record()
+    end.synchronize()
+    elapsed = cuda.event_elapsed_time(st, end) 
+    print('elapsed time = {}'.format(elapsed))
+    return d_out.copy_to_host(), elapsed
 
-def sin(y,t):
+def rhs(y,t):
     return np.array([y[1],-y[0]])
 
 def rk4_step(f,y,t0,h):
@@ -148,19 +161,83 @@ def rk_solve(f, y0, t):
         y.append(y_new)
     return np.array(y)
 
+def omega_rhs(y,t,w):
+    return np.array([y[1],-w*w*y[0]])
+
+@cuda.jit(device = True)
+def rk4_step_parallel(f,y,t0,h,w):
+    k1 = h*f(y,t0, w)
+    k2 = h*f(y+k1/2.0, t0+h/2.0,w)
+    k3 = h*f(y+k2/2.0, t0+h/2.0,w)
+    k4 = h*f(y+k3, t0+h,w)
+    y_new = y + 1.0/6.0*(k1+2*k2+2*k3+k4)
+    return y_new
     
+
+@cuda.jit
+def rk4_solve_parallel(f,d_y0,d_t,d_w):
+    n = t.size
+    h = d_t[1]-d_t[0]
+    i = cuda.grid(1)
+    c = 1
+    if i < d_w.size:
+        for j in range(len(d_t)):
+            d_y0 = rk4_step_parallel(f, d_y0, d_t[j], h, d_w[i])
+        res = d_y0[1]-c*d_y0[0]
+        d_w[i] = res
+
+def rk4_parallel(f,y0,t,w):
+    n = y0.size
+    d_y0 = cuda.to_device(y0)
+    d_w = cuda.to_device(w) 
+    d_t = cuda.to_device(t)
+    
+    TPBX = 32
+    gridDims= (n+TPBX-1)//TPBX
+    blockDims = TPBX
+    
+
+    rk4_solve_parallel[gridDims,blockDims](f,d_y0,d_t,d_w)
+    return dw.copy_to_host()
+# optional
+def eigenvals_parallel(NC,NW,NT,h):
+    pass
+
+def jacobi_update_serial(u,f):
+    return v
+
+
+@cuda.jit
+def jacobi_update_kernel(d_u,d_x,d_y):
+    pass
+
 if __name__ == "__main__":
     # problem 1
     # (a) paralleled version of ewprod finished
     # (b) 
-    '''
+    
     u = 1-v
+    '''
     ewprod_para = np.array(ewprod(u,v)))
     ewprod_np = np.multiply(u.v)
     print(np.array_equal(ewprod_para, ewprod_np))
     '''
     # (c)
-        
+    '''
+    ewprod_1c(u,v)
+    '''
+    # result:
+    # test1 : thread 64 64 64  0  0 32  0 64 32 32  0 32
+    # test1 : block   0  2  3  0  2  0  2  3  1  3  1  1
+    # test2 : thread 64  0 32 64  0 32 64  0 32 64  0 32
+    # test2 : block   0  2  2  0  0  1  3  3  3  1  1  2
+    # test3 : thread  0 64 32 64  0  0 32 32 64  0 64 32
+    # test3 : block   0  0  0  2  2  3  3  2  3  1  1  1
+    
+    # conclusion:
+    # The order of block execution is not predictable.
+    # The order of execution within a block is not predictable
+
     # problem 2
     # (a)
     
@@ -184,29 +261,72 @@ if __name__ == "__main__":
     '''
     
     # (b)
+    '''
     rad = 2
-    res_pr2 =  smooth_parallel(w,rad)
+    res_pr2, eTime_r2 =  smooth_parallel(w,rad)
+    res_pr2, eTime_r2 =  smooth_parallel(w,rad) 
     rad = 4
-    res_pr4 =  smooth_parallel(w,rad)
+    res_pr4, eTime_r4 =  smooth_parallel(w,rad)
 
     plt.figure()
-    plt.plot(res_pr2, label =  'time of rad 2 = {}'.format(2))
-    plt.plot(res_pr4, label =  'time of rad 4 = {}'.format(4))
+    plt.plot(res_pr2, label =  'time of rad 2 = {:2.4f} ms'.format(eTime_r2))
+    plt.plot(res_pr4, label =  'time of rad 4 = {:2.4f} ms'.format(eTime_r4))
     plt.legend()
     plt.show()
-
     '''
+    
     # (c)
-    rad_2c = 1
+    '''
+    rad_2c = 2
     TPB_2c = 32
     NSHARED_2c = TPB_2c + 2*rad_2c
-    smooth_parallel_sm(v,rad_2c)
-    # problem 3
-    # (a)
-    steps = 10
-    y0 = np.array([1,0])
-    t = np.linspace(0,2*np.pi,steps+1)
-    y_3a = rk_solve(sin, y0, t)
-    #(b)
+    res_sm_r2, sh_r2_time = smooth_parallel_sm(v,rad_2c)
+    res_sm_r2, sh_r2_time = smooth_parallel_sm(v,rad_2c)
+    rad_2c = 4
+    NSHARED_2c = TPB_2c + 2*rad_2c
+    res_sm_r4, sh_r4_time = smooth_parallel_sm(v,rad_2c)
+    
+    plt.figure()
+    plt.plot(res_sm_r2, label =  'time of rad 2 = {:2.4f} ms'.format(sh_r2_time))
+    plt.plot(res_sm_r4, label =  'time of rad 4 = {:2.4f} ms'.format(sh_r4_time))
+    plt.legend()
+    plt.show()
     '''
+    
+    # problem 3
+    # 3-a
+    '''
+    steps_10 = 10
+    y0 = np.array([0,1])
+    t_10 = np.linspace(0,np.pi,steps_10+1)
+    y_3a_t10 = rk_solve(rhs, y0, t_10)
+    
+    steps_100 = 100
+    t_100 = np.linspace(0,np.pi,steps_100+1)
+    y_3a_t100 = rk_solve(rhs, y0, t_100)
+    
+    exact = 0
+    err_t10  = abs(y_3a_t10[-1,0] - exact)
+    err_t100 = abs(y_3a_t100[-1,0]- exact)
+    
+    plt.figure()
+    plt.plot(t_10,y_3a_t10[:,0], label = 'steps = {}, x = pi error = {:.2E}'.format(steps_10,err_t10))
+    plt.plot(t_100,y_3a_t100[:,0], label = 'steps = {},x =pi err = {:.2E} '.format(steps_100,err_t100))
+    plt.legend()
+    plt.show()
+    '''
+    # 3-b
+    '''
+    steps_10 = 10
+    w = np.array([0,1,2,3,4,5,6,7,8,9,10])
+    y = np.array([0,1])
+    t_10 = np.linspace(0,np.pi,steps_10+1)
+    para_10 = rk4_parallel(omega_rhs, y, t_10, w )
+    plt.figure()
+    plt.plot(para_10)
+    plt.show()
+    '''
+    # 3-c
+    
+    # 4
 
