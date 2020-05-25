@@ -161,6 +161,8 @@ def rk_solve(f, y0, t):
         y.append(y_new)
     return np.array(y)
 
+
+@cuda.jit(device = True)
 def omega_rhs(y,t,w):
     return np.array([y[1],-w*w*y[0]])
 
@@ -182,7 +184,7 @@ def rk4_solve_parallel(f,d_y0,d_t,d_w):
     c = 1
     if i < d_w.size:
         for j in range(len(d_t)):
-            d_y0 = rk4_step_parallel(f, d_y0, d_t[j], h, d_w[i])
+            d_y0[i] = rk4_step_parallel(f, d_y0[i], d_t[j], h, d_w[i])
         res = d_y0[1]-c*d_y0[0]
         d_w[i] = res
 
@@ -215,11 +217,31 @@ def jacobi_update_serial(u,f,x,y):
             #u_new[i,j] = (u[i-1,j]+u[i+1,j]+u[i,j-1]+u[i,j+1])/4.
             u_new[i,j] = f(x[i],y[j])
     return u_new
-    
+
+@cuda.jit(device = True)
+def para_f(x,y):
+    return x**4+y**4-1
+
 @cuda.jit
 def jacobi_update_kernel(d_u,d_x,d_y):
-    pass
+    i,j = cuda.grid(2)
+    nx, ny = d_u.shape
+    if i < nx and j < ny:
+        d_u[i,j] = para_f(d_x[i],d_y[j])
 
+def jacobi_solve_parallel(u,f,x,y):
+    nx = x.size
+    ny = y.size
+    d_u = cuda.to_device(u)
+    d_x = cuda.to_device(x)
+    d_y = cuda.to_device(y)
+    TPBX = 32
+    TPBY = 32
+    gridDims = ((nx+TPBX-1)//TPBX , (ny+TPBY-1//TPBY))
+    blockDims = (TPBX,TPBY)
+    jacobi_update_kernel[gridDims,blockDims](d_u,d_x,d_y)
+    return d_u.copy_to_host()
+    
 
 def pb4_plt(u, xvals, yvals, tm = False):
 
@@ -238,15 +260,15 @@ if __name__ == "__main__":
     # (b) 
     
     u = 1-v
-    '''
-    ewprod_para = np.array(ewprod(u,v)))
-    ewprod_np = np.multiply(u.v)
+    
+    ewprod_para = np.array((ewprod(u,v)))
+    ewprod_np = np.multiply(u,v)
     print(np.array_equal(ewprod_para, ewprod_np))
-    '''
+    
     # (c)
-    '''
+    
     ewprod_1c(u,v)
-    '''
+    
     # result:
     # test1 : thread 64 64 64  0  0 32  0 64 32 32  0 32
     # test1 : block   0  2  3  0  2  0  2  3  1  3  1  1
@@ -260,10 +282,10 @@ if __name__ == "__main__":
     # The order of execution within a block is not predictable
 
     # problem 2
-    # (a)
+    # 2-a
     
     w = np.outer(v,1-v).flatten()
-    '''
+    
     rad = 2
     st_r2 = time.time()
     res_r2 = smooth_serial(w,rad)
@@ -279,10 +301,10 @@ if __name__ == "__main__":
     plt.plot(res_r4, label =  'time of rad 4 = {}'.format(t_r4))
     plt.legend()
     plt.show()
-    '''
     
-    # (b)
-    '''
+    
+    # 2-b
+    
     rad = 2
     res_pr2, eTime_r2 =  smooth_parallel(w,rad)
     res_pr2, eTime_r2 =  smooth_parallel(w,rad) 
@@ -294,10 +316,10 @@ if __name__ == "__main__":
     plt.plot(res_pr4, label =  'time of rad 4 = {:2.4f} ms'.format(eTime_r4))
     plt.legend()
     plt.show()
-    '''
     
-    # (c)
-    '''
+    
+    # 2- c
+    
     rad_2c = 2
     TPB_2c = 32
     NSHARED_2c = TPB_2c + 2*rad_2c
@@ -312,11 +334,11 @@ if __name__ == "__main__":
     plt.plot(res_sm_r4, label =  'time of rad 4 = {:2.4f} ms'.format(sh_r4_time))
     plt.legend()
     plt.show()
-    '''
+    
     
     # problem 3
     # 3-a
-    '''
+    
     steps_10 = 10
     y0 = np.array([0,1])
     t_10 = np.linspace(0,np.pi,steps_10+1)
@@ -335,7 +357,7 @@ if __name__ == "__main__":
     plt.plot(t_100,y_3a_t100[:,0], label = 'steps = {},x =pi err = {:.2E} '.format(steps_100,err_t100))
     plt.legend()
     plt.show()
-    '''
+    
     # 3-b
     '''
     steps_10 = 10
@@ -364,11 +386,13 @@ if __name__ == "__main__":
 
     xvals = np.linspace(0., 1.0, NX)
     yvals = np.linspace(0., 1.0, NY)
-    '''
+    
+    
     u = jacobi_update_serial(u,jac_f,xvals,yvals)
     pb4_plt(u.T,xvals,yvals)
-    '''
+    
     # 4-b
+    
     itr = 100
     st = time.time()
     for _ in range(itr):
@@ -376,4 +400,18 @@ if __name__ == "__main__":
     duration = time.time()-st
     pb4_plt(u.T,xvals,yvals, duration)
     
-        
+    # 5-a
+    
+    st = time.time()
+    u = jacobi_solve_parallel(u,para_f,xvals,yvals)
+    duration = time.time()-st
+    pb4_plt(u.T,xvals,yvals,duration)
+    
+    # 5-b
+    
+    st = time.time()
+    for _ in range(100):
+        u = jacobi_solve_parallel(u,para_f,xvals,yvals)
+    duration = time.time()-st
+    pb4_plt(u.T,xvals,yvals,duration)
+     
