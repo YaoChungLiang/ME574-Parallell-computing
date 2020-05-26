@@ -4,16 +4,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numba import cuda, float32, int32, jit
 
-t_steps = 300
-timeRange = np.linspace(0, 3.0, t_steps, endpoint=True)
+tR = 1.0
+freq = 1000
+t_steps = int(freq*tR +1)
+timeRange = np.linspace(0.0, tR, t_steps, endpoint=True)
 dt = timeRange[1] - timeRange[0]
 
-NY, NX = 21, 21
+NY, NX = 151, 151
 PI = np.pi
 TPB = 8
-RAD = 1
-SH_N = 10
-
+RAD = 2
+#SH_N = NX+2*RAD
+SH_N = 25
+X = np.linspace(0.0,1.0,NX, endpoint=True)
+Y = np.linspace(0.0,1.0,NY, endpoint=True)
+h = 1.0/float(NX)
 
 @cuda.reduce
 def max_kernel(a, b):
@@ -27,15 +32,16 @@ def sum_kernel(a, b):
 
 @cuda.jit
 def heat_step(d_u, d_out, stencil, t):
-	h=0.01
-	edge,corner = 0.25, 0.0
+	#h=1.0/151.0
+	edge = stencil[0] 
+	corner = stencil[1]
 	i, j = cuda.grid(2)
 	dims = d_u.shape
 	if i >= dims[0] or j >= dims[1]:
 		return
 	NX,NY = cuda.blockDim.x, cuda.blockDim.y
 	t_i, t_j = cuda.threadIdx.x , cuda.threadIdx.y
-	sh_i, sh_j = t_i + RAD, t_j + RAD
+	sh_i, sh_j = t_i + RAD , t_j + RAD
 
 	sh_u = cuda.shared.array(shape=(SH_N,SH_N) , dtype = float32)
 
@@ -63,7 +69,7 @@ def heat_step(d_u, d_out, stencil, t):
     
 	cuda.syncthreads()
 
-	if i > 0 and j > 0 and i < dims[0] -1 and j < dims[1] -1 :
+	if i > 1 and j > 1 and i <= dims[0] and j <= dims[1]  :
 		d_out[i, j] = \
                     (sh_u[sh_i,sh_j-1]*edge +\
                     sh_u[sh_i,sh_j+1]*edge +\
@@ -74,13 +80,17 @@ def heat_step(d_u, d_out, stencil, t):
 
 
 def p1():
+	NX = 151
+	NY = 151
+	X = np.linspace(0.0,1.0,NX, endpoint=True)
+	Y = np.linspace(0.0,1.0,NY, endpoint=True)
 	# initialization
 	u = np.zeros(shape = [NX,NY], dtype = np.float32)
     # initial condition
-	stencil = 0.25
-	for i in range(NX):
-		for j in range(NY):
-			u[i][j] = sin(2*PI*i)*sin(PI*j)
+	stencil = np.array([0.25,0])
+	for i in range(len(X)):
+		for j in range(len(Y)):
+			u[i][j] = sin(2*PI*X[i])*sin(PI*Y[j])
 	# boundary conditions
 	for j in range(NY):
 		u[0][j] = 0
@@ -93,11 +103,17 @@ def p1():
 	dims = u.shape
 	gridSize= [(dims[0]+TPB-1)//TPB, (dims[1]+TPB-1)//TPB]
 	blockSize = [TPB,TPB]	
-
+	u_max = np.max(u)
+	print(u_max)
 	for i in range(len(timeRange)):
 		heat_step[gridSize, blockSize](d_u, d_out, stencil, timeRange[i])
 		heat_step[gridSize, blockSize](d_out, d_u, stencil, timeRange[i])
-	
+		u = d_u.copy_to_host()
+		print(np.max(u))
+		print(i)
+		if np.max(u) <= u_max*np.exp(-2):
+			print(timeRange[i])
+			break
 	xvals = np.linspace(0.,1.0,NX)
 	yvals = np.linspace(0.,1.0,NY)
 	X,Y = np.meshgrid(xvals, yvals)
@@ -105,6 +121,7 @@ def p1():
     #plt.contourf(X, Y,exact.T, levels = levels)
 	plt.contour(X, Y, u.T, levels= levels, colors = "r", linewidths = 4)
 	plt.axis([0,1,0,1])
+	plt.savefig('./tRange%d_freq%d.jpg' % (tR,freq ))
 	plt.show()
         
 
