@@ -80,11 +80,8 @@ def heat_step(d_u, d_out, stencil, t):
 
 
 def p1():
-	NX = 151
-	NY = 151
-	X = np.linspace(0.0,1.0,NX, endpoint=True)
-	Y = np.linspace(0.0,1.0,NY, endpoint=True)
 	# initialization
+	global X,Y
 	u = np.zeros(shape = [NX,NY], dtype = np.float32)
     # initial condition
 	stencil = np.array([0.25,0])
