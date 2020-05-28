@@ -29,8 +29,6 @@ def IntegralSi():
     a = 0
     b = 50
     n = 6001
-    if a == 0:
-        a = (b-a)/float(n) + a 
     print(Simpson(Si, a ,b, n))
 
 
@@ -45,7 +43,7 @@ def Simpson(f,a,b,n):
         a = (b-a)/float(n) + a
         h = (b-a)/float(n-1)
     else:
-        h = (b-a)/n
+            h = (b-a)/n
     k = 0.0
     x = a + h
     for i in range(1,int(n/2)+1):
