@@ -28,6 +28,13 @@ def monteSample():
     print("circle Area : %f" % (unitSquare*counter/float(N)) )
     print("Explicit unit cir Area : %f" % realCircleArea)
     
+def p3a_Intertia():
+    # sphere moment of inertia :2 / 5* M * r ^ 2,   ref :  https://www.youtube.com/watch?v=fbD5txXPWPw    
+    # cube MOI :  1/6 * M * (2r)^2,   ref: https://www.youtube.com/watch?v=CqPjWjhURDw
+    print(f'explicit sphere MOI = {2.0/5.0*4.188790}')
+    print(f'explicit cube MOI = {1/6.0*8*2**2}' )
+    print((2.0/5.0*4.188790)/(1/6.0*8*2**2)  )
 if __name__ == "__main__":
     p3a()
     #monteSample()
+    p3a_Intertia()

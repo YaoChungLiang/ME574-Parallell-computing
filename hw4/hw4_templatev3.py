@@ -1,8 +1,9 @@
-from math import sin, sinh
+from math import sin, sinh,sqrt
 
 import matplotlib.pyplot as plt
 import numpy as np
 from numba import cuda, float32, int32, jit
+
 import time
 from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_uniform_float32
 
@@ -156,13 +157,30 @@ def integrate(y, quad):
 
 
 @cuda.jit
-def monte_carlo_kernel_sphere_intertia(rng_states, iters, out):
+def monte_carlo_kernel_sphere_intertia(rng_states, iters, d_out):
     '''
     rng_states: rng state array generated from xoroshiro random number generator
     iters: number of monte carlo sample points each thread will test
     out: output array
     '''
-    pass
+    i = cuda.grid(1)
+    counter = 0
+    #if i > d_out.shape:
+    #    return
+    d = 0.0
+    for _ in range(iters):
+        x = xoroshiro128p_uniform_float32(rng_states,i)
+        y = xoroshiro128p_uniform_float32(rng_states,i)
+        z = xoroshiro128p_uniform_float32(rng_states,i)
+        if  y**2 + z**2 <= 1 :
+            counter += 1
+    # method 2, no reference 
+    #d_out[i] = 8.0*counter/iters*0.314
+            
+    # method 1, ref:https://aapt.scitation.org/doi/abs/10.1119/1.1987089     
+    # 4.188790 : the original cube has the volume of 8 and the ball inside of it is 4.188790     
+            d += sqrt(y**2 + z**2)
+    d_out[i] = 4.188790*(d**2)/float(counter**2)
 
 
 @cuda.jit
@@ -302,13 +320,20 @@ def p3a():
     gridDim = (n+TPB-1)//TPB
     blockDim = TPB
     rng_states = create_xoroshiro128p_states(TPB*gridDim,seed = 1)
-    out = np.zeros(iters)
+    #out = np.zeros(iters)
     #d_out = np.zeros(iters, dtype = np.float32)
     d_out = cuda.device_array(iters, dtype = np.float32)
     monte_carlo_kernel_sphere_vol[gridDim, blockDim](rng_states,iters,d_out)
     
     out = d_out.copy_to_host()
-    print(np.mean(out))
+    MC_parallel_sphere_vol = np.mean(out)
+    print(f'sphere vol = {MC_parallel_sphere_vol}')
+    
+    monte_carlo_kernel_sphere_intertia[gridDim,blockDim](rng_states, iters, d_out)
+    out = d_out.copy_to_host()
+    MC_parallel_sphere_MOI = np.mean(out)
+    print(f'sphere MOI = {MC_parallel_sphere_MOI}')    
+    
 
 
 if __name__ == '__main__':
