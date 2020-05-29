@@ -2,13 +2,16 @@ import numpy as np
 
 def p3a():
     realVol = 4.0/3.0*np.pi
-    
-    N = 10000
+    r = 1
+    unitBlock = (2*r)**3
+    N = 100000
     counter = 0
     for _ in range(N):
         sample = np.random.uniform(low=-1.0, high=1.0, size=(3,))
         if sample[0]**2+sample[1]**2 + sample[2]**2 <=1:
-            counter += 1
+            counter += 1 
+    print("Real Sphere vol : %f" %realVol)
+    print("Monte Sphere vol: %f" % (unitBlock*counter/float(N)))
     
 def monteSample():
     r = 1
@@ -21,10 +24,10 @@ def monteSample():
         if sample[0]**2 + sample[1]**2 <= 1:
             counter += 1
 
-    print("Square Area %f" % unitSquare)
+    print("Square Area : %f" % unitSquare)
     print("circle Area : %f" % (unitSquare*counter/float(N)) )
     print("Explicit unit cir Area : %f" % realCircleArea)
     
 if __name__ == "__main__":
-    #p3a()
-    monteSample()
+    p3a()
+    #monteSample()

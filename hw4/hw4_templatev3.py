@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numba import cuda, float32, int32, jit
 import time
+from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_uniform_float32
+
 
 tR = 1.0
 freq = 1000
@@ -164,8 +166,18 @@ def monte_carlo_kernel_sphere_intertia(rng_states, iters, out):
 
 
 @cuda.jit
-def monte_carlo_kernel_sphere_vol(rng_states, iters, out):
-    pass
+def monte_carlo_kernel_sphere_vol(rng_states, iters, d_out):
+    i = cuda.grid(1)
+    counter = 0
+    #if i > d_out.shape:
+    #    return
+    for _ in range(iters):
+        x = xoroshiro128p_uniform_float32(rng_states,i)
+        y = xoroshiro128p_uniform_float32(rng_states,i)
+        z = xoroshiro128p_uniform_float32(rng_states,i)
+        if x**2 + y**2 + z**2 <= 1:
+            counter += 1
+    d_out[i] = 8.0 * counter / iters
 
 
 @cuda.jit
@@ -209,7 +221,7 @@ def grid_integrate_sphere_intertia(y, out, stencil):
 
 
 @cuda.jit
-def grid_integrate_sphere_vol(y, out, stencil):
+def grid_integrate_sphere_vol(d_y, d_out, stencil):
     pass
 
 
@@ -282,8 +294,26 @@ def p2withRichar():
     print(res*h/2.0/3.0)
 
 
+def p3a():
+    
+    iters = 1000
+    n = iters
+    TPB = 32
+    gridDim = (n+TPB-1)//TPB
+    blockDim = TPB
+    rng_states = create_xoroshiro128p_states(TPB*gridDim,seed = 1)
+    out = np.zeros(iters)
+    #d_out = np.zeros(iters, dtype = np.float32)
+    d_out = cuda.device_array(iters, dtype = np.float32)
+    monte_carlo_kernel_sphere_vol[gridDim, blockDim](rng_states,iters,d_out)
+    
+    out = d_out.copy_to_host()
+    print(np.mean(out))
+
+
 if __name__ == '__main__':
-    pass
+    
     # p1()
     #p2()
     #p2withRichar()
+    p3a()
