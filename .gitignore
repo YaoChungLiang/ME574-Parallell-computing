@@ -2,3 +2,5 @@
 /classNote
 /map2d
 /hw2/apps
+*.swp
+./hw2/*.swp
