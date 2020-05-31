@@ -398,8 +398,8 @@ def p2():
     for i in resArr:
         res += i
         # print(i)
-    print("Without Richarson")
-    print(res*h/3.0)
+    print(f'Si(50) using Simpson\'s rule : {res*h/3.0}')
+    #print(res*h/3.0)
 
 
 def p2withRichar():
@@ -419,9 +419,53 @@ def p2withRichar():
     res = 0
     for i in resArr:
         res += i
-    print("With Richarsin")
-    print(res*h/2.0/3.0)
+    print(f'Si(50) using Simpson\'s rule with Richarson : {res*h/3.0/2.0}')
+    #print("With Richarsin")
+    #print(res*h/2.0/3.0)
 
+def p2_estimate_accuracy():
+    n = 6001
+    a = 0
+    b = 50
+    real_integral = 1.5516169786159784
+    acc = []
+    num_arr = []
+    err = []
+    for i in range(1,5):
+        n = 5*10**i
+        h = (b-a)/float(n-1)
+        arr = np.linspace(a, b, n, endpoint=True)
+        for i in range(len(arr)):
+            arr[i] = Si(arr[i])
+        quar = np.array([1, 4, 1])
+        resArr = integrate(arr, quar)
+        res = 0
+        for i in resArr:
+            res += i
+            # print(i)
+        print(f'Si(50) using Simpson\'s rule : {res*h/3.0}')
+        num_arr.append(n)
+        acc.append(res*h/3.0)
+        err.append(np.abs(real_integral-res*h/3.0))
+    plt.figure()
+    plt.title('Si(50) w.r.t corresponding number of points')
+    plt.plot(num_arr,acc,'k*')
+    plt.xlabel('Number of points')
+    plt.ylabel('Integral result')
+    plt.xscale('log')
+    plt.savefig('./p2_res.jpg')
+    plt.show()
+    
+    # error analysis
+    plt.figure()
+    plt.title('Accuracy of Si(50) w.r.t corresponding number of points')
+    plt.plot(num_arr,err,'r*')
+    plt.xlabel('Number of points')
+    plt.ylabel('Error')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.savefig('./p2_error.jpg')
+    plt.show()
 
 def p3a():
     
@@ -555,19 +599,20 @@ def p3b():
 
 if __name__ == '__main__':
     
-    #p1() : Done
+    #p1() # : Done
     # p1 (a) : t2 = 0.04052 seconds for 151*151 grids
     # p1 (b) : already show plot
     # p1 (c) : delta T max = 0.00001 s
     
     
-    #p2()
-    #p2withRichar()
-    
+    p2()
+    p2withRichar()
+    p2_estimate_accuracy()
+    # accuracy of Si(50) is 
     
     #p3a()
     #p3b()
     #p3a_with_monte()
     # p3a_serial()  # Done without curve fitting
-    p3b()
+    #p3b()
     
