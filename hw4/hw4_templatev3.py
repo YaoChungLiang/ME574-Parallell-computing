@@ -110,16 +110,17 @@ def p1():
     # boundary conditions
     for j in range(NY):
         u[0][j] = 0
-        u[1][j] = 0
+        u[-1][j] = 0
     for i in range(NX):
         u[i][0] = 0
-        u[i][1] = 0
+        u[i][-1] = 0
         
     xvals = np.linspace(0., 1.0, NX)
     yvals = np.linspace(0., 1.0, NY)
     XX, YY = np.meshgrid(xvals, yvals)
     levels = [-1.0,-0.75,-0.5,-0.25,-0.1,-0.025,0.0,0.025, 0.1, 0.25, 0.5, 0.75,1.0]
     plt.figure('Initial figure')
+    plt.title('u(x,y,0)')
     plt.contourf(XX, YY, u.T)
     #plt.contour(X, Y, u.T)
     plt.axis([0, 1, 0, 1])
@@ -148,7 +149,8 @@ def p1():
             break
         i += 1
 
-    plt.figure('Reslt figure')
+    plt.figure('Problem 1(b), reslt figure')
+    plt.title("u(x,y,t_2), t2 = %f seconds"% (i*dt*2) )
     plt.contourf(XX, YY, u.T)
     plt.axis([0, 1, 0, 1])
     plt.colorbar()
@@ -171,10 +173,10 @@ def p1():
     # boundary conditions
     for j in range(NY):
         u[0][j] = 0
-        u[1][j] = 0
+        u[-1][j] = 0
     for i in range(NX):
         u[i][0] = 0
-        u[i][1] = 0
+        u[i][-1] = 0
         
     xvals = np.linspace(0., 1.0, NX)
     yvals = np.linspace(0., 1.0, NY)
@@ -204,7 +206,8 @@ def p1():
             break
         i += 1
 
-    plt.figure('Result figure')
+    plt.figure('problem 1-c, dt > dtmax result figure')
+    plt.title('u(x,y,t2) while dt > dt_max')
     plt.contourf(XX, YY, u.T)
     plt.axis([0, 1, 0, 1])
     plt.colorbar()
@@ -355,12 +358,16 @@ def grid_integrate_sphere_vol(d_y, d_out, stencil):
 
 
 @cuda.jit
-def grid_integrate_shell_intertia(y, out, stencil):
+def grid_integrate_shell_intertia(d_y, d_out, stencil):
     pass
 
 
 @cuda.jit
-def grid_integrate_shell_vol(y, out, stencil):
+def grid_integrate_shell_vol(d_y, d_out, stencil):
+    i,j,k = cuda.grid(3)
+    nx,ny,nz = d_y.shape
+    if i < nx and j < ny and k < nz:
+        d_out[i,j,k]
     pass
 
 
@@ -368,8 +375,9 @@ def grid_integrate(kernel):
     '''
     kernel: grid integration kernel to use
     '''
+    #stencil = np.array([-0.5,1,0.5])
+    #kernel[](d_y,d_out,stencil)
     pass
-
 
 def RicharsonRecur(f, x, h, n):
     if n <= 2:
@@ -453,8 +461,8 @@ def p2_estimate_accuracy():
     plt.xlabel('Number of points')
     plt.ylabel('Integral result')
     plt.xscale('log')
-    plt.savefig('./p2_res.jpg')
-    plt.show()
+    #plt.savefig('./p2_res.jpg')
+    #plt.show()
     
     # error analysis
     plt.figure()
@@ -464,7 +472,7 @@ def p2_estimate_accuracy():
     plt.ylabel('Error')
     plt.xscale('log')
     plt.yscale('log')
-    plt.savefig('./p2_error.jpg')
+    #plt.savefig('./p2_error.jpg')
     plt.show()
 
 def p3a():
@@ -523,8 +531,8 @@ def p3a_serial():
     plt.xlabel('Number of points')
     plt.ylabel('Error')
     plt.xscale('log')
-    plt.savefig('./tmp.jpg')
-    plt.show()
+    #plt.savefig('./tmp.jpg')
+    #plt.show()
     
     # spherical moment of inertia
     real_moment_of_inertia = 1.675516 # 2.0/5.0*4.188790*1.0**2
@@ -544,7 +552,7 @@ def p3a_serial():
     plt.xlabel('Number of points')
     plt.ylabel('Error')
     plt.xscale('log')
-    plt.savefig('./tmp_MOI.jpg')
+    #plt.savefig('./tmp_MOI.jpg')
     plt.show()
     
 def p3b():
@@ -571,11 +579,11 @@ def p3b():
     plt.xlabel('Number of points')
     plt.ylabel('Error')
     plt.xscale('log')
-    plt.savefig('./tmp.jpg')
-    plt.show()
+    #plt.savefig('./tmp.jpg')
+    #plt.show()
     
     # spherical shell moment of inertia
-    real_moment_of_inertia = 2.0/3.0*4.188790 # 2/3*M*r**2
+    real_moment_of_inertia = 0 # 2.0/3.0*4.188790 # 2/3*M*r**2
     errs = []
     iters_arr = []
     kernel = monte_carlo_kernel_shell_intertia
@@ -592,27 +600,32 @@ def p3b():
     plt.xlabel('Number of points')
     plt.ylabel('Error')
     plt.xscale('log')
-    plt.savefig('./tmp_MOI.jpg')
+    #plt.savefig('./tmp_MOI.jpg')
     plt.show()
     
     
 
 if __name__ == '__main__':
     
-    #p1() # : Done
+    
+    # problem 1 ok
+    p1() 
     # p1 (a) : t2 = 0.04052 seconds for 151*151 grids
     # p1 (b) : already show plot
     # p1 (c) : delta T max = 0.00001 s
     
-    
+    # problem 2 ok
     p2()
     p2withRichar()
     p2_estimate_accuracy()
-    # accuracy of Si(50) is 
+    # accuracy of Si(50) is 1e-5 
     
+    # problem 3b spherical shell moment of inertia is not ok 
     #p3a()
     #p3b()
     #p3a_with_monte()
-    # p3a_serial()  # Done without curve fitting
-    #p3b()
+    p3a_serial()  # Done without curve fitting
+    p3b()   # some error here
+    
+    # problem 4
     
