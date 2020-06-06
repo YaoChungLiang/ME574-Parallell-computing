@@ -204,8 +204,10 @@ def rand_mat_plusminus(n):
     Returns nxn size array of random numbers uniformly distributed on the 2-value set {-1,1}
     OPTIONAL
     """
-
-    pass
+    m = cp.random.uniform(0.0, 1.0 , size=(n,n))
+    m[m < 0.5] = -1
+    m[m >= 0.5] = 1
+    return m
 
 
 def rand_mat_uniform(n):
@@ -213,8 +215,13 @@ def rand_mat_uniform(n):
     Returns nxn size array of random numbers uniformly distrubted on the range [-1,1]
     OPTIONAL
     """
-
-    pass
+    B = cp.random.uniform(0.0, 1.0 , size=(n,n))
+    B_T = cp.transpose(B)
+    A = cp.add(B, B_T)  # cupy.ndarray
+    A[A < 1] = -1
+    A[A >= 1] = 1    
+    
+    return A
 
 def check_symmetric(a, rtol=1e-05, atol=1e-08):
     return np.allclose(a, a.T, rtol=rtol, atol=atol)
@@ -284,35 +291,57 @@ def problem3d():
     plt.show()
     
 def problem4a():
-    pass
-
+    arr = [10,100,1000,2000]
+    for n in arr:
+        m = rand_mat_plusminus(n)
+        npm = cp.asnumpy(m)
+        eigvals = cupy_eig(m)
+        plt.hist(cp.asnumpy(eigvals)[:-1])
+        plt.title('problem4a: normal distribution of eigenvalues of a matrix, n= {} '.format(n))
+        plt.show()
+        
+    
+def problem4b():
+    arr = [10,100,1000,2000]
+    for n in arr:
+        m = rand_mat_uniform(n)
+        npm = cp.asnumpy(m)
+        eigvals = cupy_eig(m)
+        plt.hist(cp.asnumpy(eigvals)[:-1])
+        plt.title('problem4b: normal distribution of eigenvalues of a matrix, n= {} '.format(n))
+        plt.show()      
+    
 if __name__ == "__main__":
 
     # Fill in code here to call functions
 
-    # problem 1 Done
+    # # problem 1 Done
     cupy_fft()
     cupy_filter()  # need to execute this one
-    # 1-(a) : cupy installed, using pip install cupy-cuda80, checked with ``import cupy as cp``
-    # 1-(b) : cupy_fft() function modified successfully
-    # 1-(c): cupy_filter() works well
+    # # 1-(a) : cupy installed, using pip install cupy-cuda80, checked with ``import cupy as cp``
+    # # 1-(b) : cupy_fft() function modified successfully
+    # # 1-(c): cupy_filter() works well
 
     problem2() #done
-    # problem2 discussion:
-    # When n becomes large, the max eigenvalue asymptotically approch to 2
-    # the corresponding eigenvector all come with the same sign (all positive or negative)
-    # also, the eigenvector is symmetric
+    # # problem2 discussion:
+    # # When n becomes large, the max eigenvalue asymptotically approch to 2
+    # # the corresponding eigenvector all come with the same sign (all positive or negative)
+    # # also, the eigenvector is symmetric
 
-    # problem3
-    # 3-(a) : rand_mat_gauss finished, return an symmetric normal distribution matrix
+    # # problem3
+    # # 3-(a) : rand_mat_gauss finished, return an symmetric normal distribution matrix
     problem3b() #done
     problem3c() #done
-    # 3-(c) : the distribution of eigenvalues is also normal distribution
+    # # 3-(c) : the distribution of eigenvalues is also normal distribution
     problem3d() # done
-    # 3-(d) : I found that the number of eigenvalues within different region are increasing as n goes up
+    # # 3-(d) : I found that the number of eigenvalues within different region are increasing as n goes up, O(n)
     
     # problem 4
     problem4a()
+    # 4-(a): rand_mat_plusminus() finished, the number of eigenvalues in a distribution region has growing rate to be O(n)
+    problem4b()
+    # 4-(b): rand_mat_uniform() finished, the number of eigenvalues in a distribution region has growing rate to be O(n)
+
     
     
     
